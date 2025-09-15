@@ -32,6 +32,7 @@ export const EditWorkModal = ({ open, onOpenChange, onSubmit, record }: EditWork
     onSubmit({
       ...record,
       location,
+      // Manter o createdBy original
     });
 
     onOpenChange(false);

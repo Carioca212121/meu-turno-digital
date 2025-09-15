@@ -3,8 +3,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Calendar, Download, MapPin } from "lucide-react";
+import { FileText, Calendar, Download, MapPin, User } from "lucide-react";
 import jsPDF from 'jspdf';
 import type { WorkRecord } from "@/types/work";
 
@@ -17,17 +18,28 @@ interface ReportsModalProps {
 export const ReportsModal = ({ open, onOpenChange, workRecords }: ReportsModalProps) => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedUser, setSelectedUser] = useState("todos");
 
   const generateReport = () => {
     if (!startDate || !endDate) {
       return;
     }
 
-    const filteredRecords = workRecords.filter(record => {
+    // Obter lista única de usuários
+    const uniqueUsers = Array.from(new Set(workRecords.map(record => record.createdBy || "Usuário Desconhecido")));
+
+    let filteredRecords = workRecords.filter(record => {
       const recordDate = new Date(record.date);
       const start = new Date(startDate);
       const end = new Date(endDate);
-      return recordDate >= start && recordDate <= end;
+      const dateInRange = recordDate >= start && recordDate <= end;
+      
+      // Filtrar por usuário se não for "todos"
+      if (selectedUser === "todos") {
+        return dateInRange;
+      } else {
+        return dateInRange && (record.createdBy || "Usuário Desconhecido") === selectedUser;
+      }
     });
 
     if (filteredRecords.length === 0) {
@@ -42,14 +54,15 @@ export const ReportsModal = ({ open, onOpenChange, workRecords }: ReportsModalPr
     pdf.setFont("helvetica", "bold");
     pdf.text("RELATÓRIO DE TRABALHO", 105, 20, { align: "center" });
     
-    // Period
+    // Period and user info
     pdf.setFontSize(12);
     pdf.setFont("helvetica", "normal");
     pdf.text(`Período: ${new Date(startDate).toLocaleDateString('pt-BR')} a ${new Date(endDate).toLocaleDateString('pt-BR')}`, 20, 40);
-    pdf.text(`Total de registros: ${filteredRecords.length}`, 20, 50);
+    pdf.text(`Usuário: ${selectedUser === "todos" ? "Todos os usuários" : selectedUser}`, 20, 50);
+    pdf.text(`Total de registros: ${filteredRecords.length}`, 20, 60);
     
     // Records
-    let yPosition = 70;
+    let yPosition = 80;
     pdf.setFont("helvetica", "bold");
     pdf.text("DETALHES:", 20, yPosition);
     yPosition += 10;
@@ -64,6 +77,8 @@ export const ReportsModal = ({ open, onOpenChange, workRecords }: ReportsModalPr
       pdf.text(`${index + 1}. Data: ${new Date(record.date).toLocaleDateString('pt-BR')}`, 20, yPosition);
       yPosition += 7;
       pdf.text(`   Local: ${record.location}`, 20, yPosition);
+      yPosition += 7;
+      pdf.text(`   Usuário: ${record.createdBy || "Usuário Desconhecido"}`, 20, yPosition);
       yPosition += 15;
     });
     
@@ -78,7 +93,10 @@ export const ReportsModal = ({ open, onOpenChange, workRecords }: ReportsModalPr
     pdf.text(`Relatório gerado em: ${new Date().toLocaleString('pt-BR')}`, 20, yPosition);
     
     // Download PDF
-    pdf.save(`relatorio-trabalho-${startDate}-${endDate}.pdf`);
+    const fileName = selectedUser === "todos" 
+      ? `relatorio-trabalho-todos-${startDate}-${endDate}.pdf`
+      : `relatorio-trabalho-${selectedUser}-${startDate}-${endDate}.pdf`;
+    pdf.save(fileName);
     
     onOpenChange(false);
   };
@@ -92,7 +110,7 @@ export const ReportsModal = ({ open, onOpenChange, workRecords }: ReportsModalPr
           </div>
           <DialogTitle className="text-xl">Relatórios de Trabalho</DialogTitle>
           <DialogDescription>
-            Gere relatórios detalhados filtrados por período
+            Gere relatórios detalhados filtrados por período e usuário
           </DialogDescription>
         </DialogHeader>
         
@@ -106,6 +124,24 @@ export const ReportsModal = ({ open, onOpenChange, workRecords }: ReportsModalPr
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="userSelect" className="text-sm font-medium">Usuário</Label>
+                <Select value={selectedUser} onValueChange={setSelectedUser}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Selecione um usuário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os usuários</SelectItem>
+                    {Array.from(new Set(workRecords.map(record => record.createdBy || "Usuário Desconhecido")))
+                      .sort()
+                      .map(user => (
+                        <SelectItem key={user} value={user}>{user}</SelectItem>
+                      ))
+                    }
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="startDate" className="text-sm font-medium">Data de Início</Label>

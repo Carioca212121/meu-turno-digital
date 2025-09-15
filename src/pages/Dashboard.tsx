@@ -42,11 +42,6 @@ const Dashboard = () => {
     const savedUserRole = localStorage.getItem("userRole") as User['role'];
     const savedRecords = localStorage.getItem("workRecords");
 
-    console.log("Dashboard useEffect - auth:", auth);
-    console.log("Dashboard useEffect - savedUsername:", savedUsername);
-    console.log("Dashboard useEffect - savedUserRole:", savedUserRole);
-    console.log("Dashboard useEffect - savedRecords:", savedRecords);
-
     if (!auth) {
       navigate("/");
       return;
@@ -58,11 +53,12 @@ const Dashboard = () => {
     
     if (savedRecords) {
       const records = JSON.parse(savedRecords);
-      console.log("Parsed records:", records);
-      setWorkRecords(records);
+      const migratedRecords = migrateOldRecords(records);
+      setWorkRecords(migratedRecords);
+      
+      // Salvar registros migrados de volta
+      localStorage.setItem("workRecords", JSON.stringify(migratedRecords));
     }
-
-    console.log("Final userRole set to:", savedUserRole || "Gerente");
   }, [navigate]);
 
   const handleLogout = () => {
@@ -90,6 +86,14 @@ const Dashboard = () => {
       title: "Registro adicionado!",
       description: "Trabalho registrado com sucesso.",
     });
+  };
+
+  // Migrar registros antigos para incluir createdBy se não existir
+  const migrateOldRecords = (records: WorkRecord[]): WorkRecord[] => {
+    return records.map(record => ({
+      ...record,
+      createdBy: record.createdBy || username || "marcioandrade" // Para registros antigos
+    }));
   };
 
   const totalDaysThisMonth = workRecords
@@ -171,6 +175,7 @@ const Dashboard = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-8">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="registros">Registros</TabsTrigger>
             {userRole === "Gerente" && (
               <TabsTrigger value="users">
                 <Users className="w-4 h-4 mr-2" />
@@ -331,6 +336,89 @@ const Dashboard = () => {
             )}
           </TabsContent>
 
+          <TabsContent value="registros">
+            <Card className="border-0 shadow-soft">
+              <CardHeader>
+                <CardTitle>Todos os Registros de Trabalho</CardTitle>
+                <CardDescription>
+                  Visualize todos os registros organizados por usuário
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {Object.entries(
+                    workRecords.reduce((acc, record) => {
+                      const user = record.createdBy || "Usuário Desconhecido";
+                      if (!acc[user]) acc[user] = [];
+                      acc[user].push(record);
+                      return acc;
+                    }, {} as Record<string, WorkRecord[]>)
+                  ).map(([user, userRecords]) => (
+                    <div key={user} className="space-y-3">
+                      <div className="flex items-center gap-3 pb-2 border-b">
+                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                          <UserIcon className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-lg">{user}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {userRecords.length} registro(s)
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid gap-3 ml-11">
+                        {userRecords
+                          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                          .map((record) => (
+                          <div key={record.id} className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg border">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+                                <MapPin className="w-4 h-4 text-primary" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{record.location}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {new Date(record.date).toLocaleDateString('pt-BR')}
+                                </p>
+                              </div>
+                            </div>
+                            {(!userRole || userRole === "Gerente") && (
+                              <div className="flex items-center gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleEditRecord(record)}
+                                  className="h-8 px-2"
+                                >
+                                  Editar
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="destructive"
+                                  onClick={() => handleDeleteRecord(record.id)}
+                                  className="h-8 px-2"
+                                >
+                                  Deletar
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {workRecords.length === 0 && (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Nenhum registro encontrado.</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="users">
             <Card className="border-0 shadow-soft">
               <CardHeader>
@@ -355,6 +443,7 @@ const Dashboard = () => {
         open={showWorkModal}
         onOpenChange={setShowWorkModal}
         onSubmit={addWorkRecord}
+        currentUser={username}
       />
       
       <ReportsModal 

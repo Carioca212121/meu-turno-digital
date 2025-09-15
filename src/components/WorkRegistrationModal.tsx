@@ -10,9 +10,10 @@ interface WorkRegistrationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (record: Omit<WorkRecord, "id">) => void;
+  currentUser: string;
 }
 
-export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit }: WorkRegistrationModalProps) => {
+export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit, currentUser }: WorkRegistrationModalProps) => {
   const [location, setLocation] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -27,6 +28,7 @@ export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit }: WorkRegi
     onSubmit({
       date: today,
       location,
+      createdBy: currentUser,
     });
 
     // Reset form
