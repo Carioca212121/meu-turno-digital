@@ -16,21 +16,16 @@ import {
 } from "lucide-react";
 import { WorkRegistrationModal } from "@/components/WorkRegistrationModal";
 import { ReportsModal } from "@/components/ReportsModal";
-
-interface WorkRecord {
-  id: string;
-  date: string;
-  location: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-}
+import { EditWorkModal } from "@/components/EditWorkModal";
+import type { WorkRecord } from "@/types/work";
 
 const Dashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState("");
   const [showWorkModal, setShowWorkModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [workRecords, setWorkRecords] = useState<WorkRecord[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -79,23 +74,41 @@ const Dashboard = () => {
     });
   };
 
-  const totalHoursThisMonth = workRecords
+  const totalDaysThisMonth = workRecords
     .filter(record => {
       const recordDate = new Date(record.date);
       const now = new Date();
       return recordDate.getMonth() === now.getMonth() && recordDate.getFullYear() === now.getFullYear();
-    })
-    .reduce((total, record) => total + record.duration, 0);
+    }).length;
 
-  const totalDaysThisMonth = new Set(
-    workRecords
-      .filter(record => {
-        const recordDate = new Date(record.date);
-        const now = new Date();
-        return recordDate.getMonth() === now.getMonth() && recordDate.getFullYear() === now.getFullYear();
-      })
-      .map(record => record.date)
-  ).size;
+  const handleEditRecord = (record: WorkRecord) => {
+    setEditingRecord(record);
+    setShowEditModal(true);
+  };
+
+  const handleUpdateRecord = (updatedRecord: WorkRecord) => {
+    const updatedRecords = workRecords.map(record => 
+      record.id === updatedRecord.id ? updatedRecord : record
+    );
+    setWorkRecords(updatedRecords);
+    localStorage.setItem("workRecords", JSON.stringify(updatedRecords));
+    
+    toast({
+      title: "Registro atualizado!",
+      description: "As alterações foram salvas com sucesso.",
+    });
+  };
+
+  const handleDeleteRecord = (recordId: string) => {
+    const updatedRecords = workRecords.filter(record => record.id !== recordId);
+    setWorkRecords(updatedRecords);
+    localStorage.setItem("workRecords", JSON.stringify(updatedRecords));
+    
+    toast({
+      title: "Registro removido!",
+      description: "O registro foi deletado com sucesso.",
+    });
+  };
 
   if (!isAuthenticated) {
     return <div>Carregando...</div>;
@@ -146,8 +159,8 @@ const Dashboard = () => {
                   <Clock className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Horas Este Mês</p>
-                  <p className="text-2xl font-bold">{totalHoursThisMonth.toFixed(1)}h</p>
+                  <p className="text-sm text-muted-foreground">Dias Este Mês</p>
+                  <p className="text-2xl font-bold">{totalDaysThisMonth}</p>
                 </div>
               </div>
             </CardContent>
@@ -160,8 +173,8 @@ const Dashboard = () => {
                   <Calendar className="w-6 h-6 text-success" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Dias Trabalhados</p>
-                  <p className="text-2xl font-bold">{totalDaysThisMonth}</p>
+                  <p className="text-sm text-muted-foreground">Registros Únicos</p>
+                  <p className="text-2xl font-bold">{new Set(workRecords.map(r => r.date)).size}</p>
                 </div>
               </div>
             </CardContent>
@@ -255,9 +268,23 @@ const Dashboard = () => {
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">{record.startTime} - {record.endTime}</p>
-                        <p className="text-sm text-muted-foreground">{record.duration.toFixed(1)}h</p>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleEditRecord(record)}
+                          className="h-8 px-2"
+                        >
+                          Editar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={() => handleDeleteRecord(record.id)}
+                          className="h-8 px-2"
+                        >
+                          Deletar
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -279,6 +306,13 @@ const Dashboard = () => {
         open={showReportsModal}
         onOpenChange={setShowReportsModal}
         workRecords={workRecords}
+      />
+      
+      <EditWorkModal 
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        onSubmit={handleUpdateRecord}
+        record={editingRecord}
       />
     </div>
   );

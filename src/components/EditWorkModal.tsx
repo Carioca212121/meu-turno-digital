@@ -1,53 +1,69 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MapPin, Clock, Save } from "lucide-react";
+import { MapPin, Save } from "lucide-react";
 import type { WorkRecord } from "@/types/work";
 
-interface WorkRegistrationModalProps {
+interface EditWorkModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (record: Omit<WorkRecord, "id">) => void;
+  onSubmit: (record: WorkRecord) => void;
+  record: WorkRecord | null;
 }
 
-export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit }: WorkRegistrationModalProps) => {
+export const EditWorkModal = ({ open, onOpenChange, onSubmit, record }: EditWorkModalProps) => {
   const [location, setLocation] = useState("");
+
+  useEffect(() => {
+    if (record) {
+      setLocation(record.location);
+    }
+  }, [record]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!location) {
+    if (!location || !record) {
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
-
     onSubmit({
-      date: today,
+      ...record,
       location,
     });
 
-    // Reset form
-    setLocation("");
     onOpenChange(false);
   };
+
+  if (!record) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md border-0 shadow-large">
         <DialogHeader className="text-center space-y-3">
           <div className="mx-auto w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <Clock className="w-6 h-6 text-primary-foreground" />
+            <MapPin className="w-6 h-6 text-primary-foreground" />
           </div>
-          <DialogTitle className="text-xl">Registro de Trabalho</DialogTitle>
+          <DialogTitle className="text-xl">Editar Registro</DialogTitle>
           <DialogDescription>
-            Registre os detalhes do seu trabalho de hoje
+            Edite os detalhes do registro de trabalho
           </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="date" className="text-sm font-medium">Data</Label>
+            <Input
+              id="date"
+              type="date"
+              value={record.date}
+              disabled
+              className="h-11 bg-muted"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="location" className="text-sm font-medium">Local de Trabalho</Label>
             <div className="relative">
@@ -64,7 +80,6 @@ export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit }: WorkRegi
             </div>
           </div>
 
-
           <div className="flex gap-3 pt-4">
             <Button 
               type="button" 
@@ -80,7 +95,7 @@ export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit }: WorkRegi
               disabled={!location}
             >
               <Save className="w-4 h-4 mr-2" />
-              Salvar Registro
+              Salvar Alterações
             </Button>
           </div>
         </form>
