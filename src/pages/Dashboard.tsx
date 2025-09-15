@@ -42,6 +42,11 @@ const Dashboard = () => {
     const savedUserRole = localStorage.getItem("userRole") as User['role'];
     const savedRecords = localStorage.getItem("workRecords");
 
+    console.log("Dashboard useEffect - auth:", auth);
+    console.log("Dashboard useEffect - savedUsername:", savedUsername);
+    console.log("Dashboard useEffect - savedUserRole:", savedUserRole);
+    console.log("Dashboard useEffect - savedRecords:", savedRecords);
+
     if (!auth) {
       navigate("/");
       return;
@@ -49,11 +54,15 @@ const Dashboard = () => {
 
     setIsAuthenticated(true);
     setUsername(savedUsername || "");
-    setUserRole(savedUserRole);
+    setUserRole(savedUserRole || "Gerente"); // Default para Gerente se não existir
     
     if (savedRecords) {
-      setWorkRecords(JSON.parse(savedRecords));
+      const records = JSON.parse(savedRecords);
+      console.log("Parsed records:", records);
+      setWorkRecords(records);
     }
+
+    console.log("Final userRole set to:", savedUserRole || "Gerente");
   }, [navigate]);
 
   const handleLogout = () => {
@@ -218,7 +227,7 @@ const Dashboard = () => {
 
             {/* Action Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {(userRole === "Gerente" || userRole === "Funcionário") && (
+              {(!userRole || userRole === "Gerente" || userRole === "Funcionário") && (
                 <Card className="border-0 shadow-soft hover:shadow-medium transition-all duration-300">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-3">
@@ -243,7 +252,7 @@ const Dashboard = () => {
                 </Card>
               )}
 
-              {(userRole === "Gerente" || userRole === "Empresa") && (
+              {(!userRole || userRole === "Gerente" || userRole === "Empresa") && (
                 <Card className="border-0 shadow-soft hover:shadow-medium transition-all duration-300">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-3">
@@ -293,7 +302,7 @@ const Dashboard = () => {
                               </p>
                             </div>
                           </div>
-                          {userRole === "Gerente" && (
+                          {(!userRole || userRole === "Gerente") && (
                             <div className="flex items-center gap-2">
                               <Button 
                                 size="sm" 
