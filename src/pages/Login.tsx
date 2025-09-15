@@ -20,12 +20,32 @@ const Login = () => {
 
     // Simulate API call
     setTimeout(() => {
-      if (username === "marcioandrade" && password === "161271") {
+      // Verificar usuários no sistema
+      const savedUsers = localStorage.getItem("systemUsers");
+      let users = [];
+      
+      if (savedUsers) {
+        users = JSON.parse(savedUsers);
+      } else {
+        // Usuário padrão se não existir nenhum
+        users = [{
+          id: "1",
+          username: "marcioandrade",
+          password: "161271",
+          role: "Gerente"
+        }];
+        localStorage.setItem("systemUsers", JSON.stringify(users));
+      }
+      
+      const user = users.find((u: any) => u.username === username && u.password === password);
+      
+      if (user) {
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("username", username);
+        localStorage.setItem("userRole", user.role);
         toast({
           title: "Login realizado com sucesso!",
-          description: "Bem-vindo ao sistema de controle de trabalho.",
+          description: `Bem-vindo, ${username}! Cargo: ${user.role}`,
         });
         navigate("/dashboard");
       } else {
