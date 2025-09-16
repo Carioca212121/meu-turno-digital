@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Clock, 
   Plus, 
@@ -23,9 +25,7 @@ import { UsersModal, type User } from "@/components/UsersModal";
 import type { WorkRecord } from "@/types/work";
 
 const Dashboard = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState("");
-  const [userRole, setUserRole] = useState<User['role'] | null>(null);
+  const { user, session, profile, loading, signOut } = useAuth();
   const [showWorkModal, setShowWorkModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -37,64 +37,110 @@ const Dashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const auth = localStorage.getItem("isAuthenticated");
-    const savedUsername = localStorage.getItem("username");
-    const savedUserRole = localStorage.getItem("userRole") as User['role'];
-    const savedRecords = localStorage.getItem("workRecords");
-
-    if (!auth) {
-      navigate("/");
+    if (loading) return;
+    
+    if (!session || !user) {
+      navigate("/auth");
       return;
     }
 
-    setIsAuthenticated(true);
-    setUsername(savedUsername || "");
-    setUserRole(savedUserRole || "Gerente"); // Default para Gerente se não existir
-    
-    if (savedRecords) {
-      const records = JSON.parse(savedRecords);
-      const migratedRecords = migrateOldRecords(records);
-      setWorkRecords(migratedRecords);
-      
-      // Salvar registros migrados de volta
-      localStorage.setItem("workRecords", JSON.stringify(migratedRecords));
-    }
-  }, [navigate]);
+    // Load work records from Supabase
+    loadWorkRecords();
+  }, [session, user, navigate, loading]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("username");
-    localStorage.removeItem("userRole");
+  const loadWorkRecords = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('work_records')
+        .select(`
+          id,
+          date,
+          start_time,
+          end_time,
+          description,
+          user_id,
+          created_at
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Get profiles data separately
+      const userIds = [...new Set(data.map(record => record.user_id))];
+      
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('user_id, username')
+        .in('user_id', userIds);
+
+      const profilesMap = profilesData?.reduce((acc, profile) => {
+        acc[profile.user_id] = profile.username;
+        return acc;
+      }, {} as Record<string, string>) || {};
+
+      const transformedRecords: WorkRecord[] = data.map(record => ({
+        id: record.id,
+        date: record.date,
+        startTime: record.start_time,
+        endTime: record.end_time,
+        location: record.description || 'Local não especificado',
+        createdBy: profilesMap[record.user_id] || 'Usuário desconhecido'
+      }));
+
+      setWorkRecords(transformedRecords);
+    } catch (error) {
+      console.error('Error loading work records:', error);
+      toast({
+        title: "Erro ao carregar registros",
+        description: "Não foi possível carregar os registros de trabalho.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
     toast({
       title: "Logout realizado",
       description: "Até logo!",
     });
-    navigate("/");
+    navigate("/auth");
   };
 
-  const addWorkRecord = (record: Omit<WorkRecord, "id">) => {
-    const newRecord = {
-      ...record,
-      id: Date.now().toString(),
-    };
-    
-    const updatedRecords = [...workRecords, newRecord];
-    setWorkRecords(updatedRecords);
-    localStorage.setItem("workRecords", JSON.stringify(updatedRecords));
-    
-    toast({
-      title: "Registro adicionado!",
-      description: "Trabalho registrado com sucesso.",
-    });
+  const addWorkRecord = async (record: Omit<WorkRecord, "id">) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('work_records')
+        .insert({
+          user_id: user.id,
+          date: record.date,
+          start_time: record.startTime,
+          end_time: record.endTime,
+          description: record.location
+        });
+
+      if (error) throw error;
+
+      await loadWorkRecords(); // Reload records
+      
+      toast({
+        title: "Registro adicionado!",
+        description: "Trabalho registrado com sucesso.",
+      });
+    } catch (error) {
+      console.error('Error adding work record:', error);
+      toast({
+        title: "Erro ao adicionar registro",
+        description: "Não foi possível salvar o registro.",
+        variant: "destructive",
+      });
+    }
   };
 
-  // Migrar registros antigos para incluir createdBy se não existir
-  const migrateOldRecords = (records: WorkRecord[]): WorkRecord[] => {
-    return records.map(record => ({
-      ...record,
-      createdBy: record.createdBy || username || "marcioandrade" // Para registros antigos
-    }));
-  };
 
   const totalDaysThisMonth = workRecords
     .filter(record => {
@@ -108,32 +154,76 @@ const Dashboard = () => {
     setShowEditModal(true);
   };
 
-  const handleUpdateRecord = (updatedRecord: WorkRecord) => {
-    const updatedRecords = workRecords.map(record => 
-      record.id === updatedRecord.id ? updatedRecord : record
-    );
-    setWorkRecords(updatedRecords);
-    localStorage.setItem("workRecords", JSON.stringify(updatedRecords));
-    
-    toast({
-      title: "Registro atualizado!",
-      description: "As alterações foram salvas com sucesso.",
-    });
+  const handleUpdateRecord = async (updatedRecord: WorkRecord) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('work_records')
+        .update({
+          date: updatedRecord.date,
+          start_time: updatedRecord.startTime,
+          end_time: updatedRecord.endTime,
+          description: updatedRecord.location
+        })
+        .eq('id', updatedRecord.id);
+
+      if (error) throw error;
+
+      await loadWorkRecords(); // Reload records
+      
+      toast({
+        title: "Registro atualizado!",
+        description: "As alterações foram salvas com sucesso.",
+      });
+    } catch (error) {
+      console.error('Error updating work record:', error);
+      toast({
+        title: "Erro ao atualizar registro",
+        description: "Não foi possível salvar as alterações.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteRecord = (recordId: string) => {
-    const updatedRecords = workRecords.filter(record => record.id !== recordId);
-    setWorkRecords(updatedRecords);
-    localStorage.setItem("workRecords", JSON.stringify(updatedRecords));
-    
-    toast({
-      title: "Registro removido!",
-      description: "O registro foi deletado com sucesso.",
-    });
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('work_records')
+        .delete()
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      await loadWorkRecords(); // Reload records
+      
+      toast({
+        title: "Registro removido!",
+        description: "O registro foi deletado com sucesso.",
+      });
+    } catch (error) {
+      console.error('Error deleting work record:', error);
+      toast({
+        title: "Erro ao remover registro",
+        description: "Não foi possível deletar o registro.",
+        variant: "destructive",
+      });
+    }
   };
 
-  if (!isAuthenticated) {
-    return <div>Carregando...</div>;
+  if (loading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p>Carregando...</p>
+      </div>
+    </div>;
+  }
+
+  if (!session || !user) {
+    return null; // Will redirect to auth
   }
 
   return (
@@ -154,7 +244,12 @@ const Dashboard = () => {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-primary-foreground">
                 <UserIcon className="w-4 h-4" />
-                <span className="font-medium">{username}</span>
+                <span className="font-medium">{profile?.username || user.email}</span>
+                {profile?.role && (
+                  <span className="text-xs bg-primary-foreground/20 px-2 py-1 rounded">
+                    {profile.role}
+                  </span>
+                )}
               </div>
               <Button 
                 variant="secondary" 
@@ -176,7 +271,7 @@ const Dashboard = () => {
           <TabsList className="mb-8">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="registros">Registros</TabsTrigger>
-            {userRole === "Gerente" && (
+            {profile?.role === "Gerente" && (
               <TabsTrigger value="users">
                 <Users className="w-4 h-4 mr-2" />
                 Usuários
@@ -232,7 +327,7 @@ const Dashboard = () => {
 
             {/* Action Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {(!userRole || userRole === "Gerente" || userRole === "Funcionário") && (
+              {(!profile?.role || profile?.role === "Gerente" || profile?.role === "Funcionário") && (
                 <Card className="border-0 shadow-soft hover:shadow-medium transition-all duration-300">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-3">
@@ -257,7 +352,7 @@ const Dashboard = () => {
                 </Card>
               )}
 
-              {(!userRole || userRole === "Gerente" || userRole === "Empresa") && (
+              {(!profile?.role || profile?.role === "Gerente" || profile?.role === "Administrador") && (
                 <Card className="border-0 shadow-soft hover:shadow-medium transition-all duration-300">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-3">
@@ -307,7 +402,7 @@ const Dashboard = () => {
                               </p>
                             </div>
                           </div>
-                          {(!userRole || userRole === "Gerente") && (
+                          {(!profile?.role || profile?.role === "Gerente") && (
                             <div className="flex items-center gap-2">
                               <Button 
                                 size="sm" 
@@ -383,7 +478,7 @@ const Dashboard = () => {
                                 </p>
                               </div>
                             </div>
-                            {(!userRole || userRole === "Gerente") && (
+                            {(!profile?.role || profile?.role === "Gerente") && (
                               <div className="flex items-center gap-2">
                                 <Button 
                                   size="sm" 
@@ -443,7 +538,7 @@ const Dashboard = () => {
         open={showWorkModal}
         onOpenChange={setShowWorkModal}
         onSubmit={addWorkRecord}
-        currentUser={username}
+        currentUser={profile?.username || user.email || ''}
       />
       
       <ReportsModal 

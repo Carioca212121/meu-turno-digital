@@ -15,11 +15,13 @@ interface WorkRegistrationModalProps {
 
 export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit, currentUser }: WorkRegistrationModalProps) => {
   const [location, setLocation] = useState("");
+  const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("17:00");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!location) {
+    if (!location || !startTime || !endTime) {
       return;
     }
 
@@ -27,12 +29,16 @@ export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit, currentUse
 
     onSubmit({
       date: today,
+      startTime,
+      endTime,
       location,
       createdBy: currentUser,
     });
 
     // Reset form
     setLocation("");
+    setStartTime("08:00");
+    setEndTime("17:00");
     onOpenChange(false);
   };
 
@@ -66,6 +72,37 @@ export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit, currentUse
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startTime" className="text-sm font-medium">Hora Início</Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="pl-10 h-11"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="endTime" className="text-sm font-medium">Hora Fim</Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="endTime"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="pl-10 h-11"
+                  required
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="flex gap-3 pt-4">
             <Button 
@@ -79,7 +116,7 @@ export const WorkRegistrationModal = ({ open, onOpenChange, onSubmit, currentUse
             <Button 
               type="submit" 
               className="flex-1 bg-gradient-primary hover:shadow-primary transition-all duration-300"
-              disabled={!location}
+              disabled={!location || !startTime || !endTime}
             >
               <Save className="w-4 h-4 mr-2" />
               Salvar Registro

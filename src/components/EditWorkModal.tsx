@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MapPin, Save } from "lucide-react";
+import { MapPin, Save, Clock } from "lucide-react";
 import type { WorkRecord } from "@/types/work";
 
 interface EditWorkModalProps {
@@ -15,23 +15,29 @@ interface EditWorkModalProps {
 
 export const EditWorkModal = ({ open, onOpenChange, onSubmit, record }: EditWorkModalProps) => {
   const [location, setLocation] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
 
   useEffect(() => {
     if (record) {
       setLocation(record.location);
+      setStartTime(record.startTime || "08:00");
+      setEndTime(record.endTime || "17:00");
     }
   }, [record]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!location || !record) {
+    if (!location || !startTime || !endTime || !record) {
       return;
     }
 
     onSubmit({
       ...record,
       location,
+      startTime,
+      endTime,
       // Manter o createdBy original
     });
 
@@ -81,6 +87,38 @@ export const EditWorkModal = ({ open, onOpenChange, onSubmit, record }: EditWork
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startTime" className="text-sm font-medium">Hora Início</Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="pl-10 h-11"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="endTime" className="text-sm font-medium">Hora Fim</Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="endTime"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="pl-10 h-11"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-4">
             <Button 
               type="button" 
@@ -93,7 +131,7 @@ export const EditWorkModal = ({ open, onOpenChange, onSubmit, record }: EditWork
             <Button 
               type="submit" 
               className="flex-1 bg-gradient-primary hover:shadow-primary transition-all duration-300"
-              disabled={!location}
+              disabled={!location || !startTime || !endTime}
             >
               <Save className="w-4 h-4 mr-2" />
               Salvar Alterações
