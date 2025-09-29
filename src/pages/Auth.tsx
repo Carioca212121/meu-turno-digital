@@ -133,8 +133,7 @@ const Auth = () => {
                       required
                     >
                       <option value="Funcionário">Funcionário</option>
-                      <option value="Gerente">Gerente</option>
-                      <option value="Administrador">Administrador</option>
+                      <option value="Empresa">Empresa</option>
                     </select>
                   </div>
                 </>
